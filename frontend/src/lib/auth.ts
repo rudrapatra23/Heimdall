@@ -25,6 +25,8 @@ export async function signInWithGoogle(): Promise<void> {
     provider: 'google',
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
+      scopes: 'https://mail.google.com/ https://www.googleapis.com/auth/calendar',
+      queryParams: { access_type: 'offline', prompt: 'consent' }
     },
   });
   if (error) throw error;

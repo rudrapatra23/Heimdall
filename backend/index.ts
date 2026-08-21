@@ -1,6 +1,7 @@
 import { handleGetProfile, handlePostProfile } from './src/routes/profile.ts';
 import { handleTelegramLinkStart, handleTelegramWebhook } from './src/routes/telegram.ts';
-
+import { handleStoreGmailCredentials } from './src/routes/gmail.ts';
+import { bot } from "./src/telegram/bot.ts";
 const PORT = parseInt(process.env.PORT ?? '4000');
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
@@ -49,7 +50,9 @@ const server = Bun.serve({
       if (url.pathname === '/api/health' && method === 'GET') {
         return json({ status: 'ok', timestamp: new Date().toISOString() });
       }
-
+      if (url.pathname === '/api/gmail/store-credentials' && method === 'POST') {
+  return route(() => handleStoreGmailCredentials(req));
+}
       // Profile routes
       if (url.pathname === '/api/profile') {
         if (method === 'GET') return route(() => handleGetProfile(req));
@@ -71,5 +74,8 @@ const server = Bun.serve({
     }
   },
 });
-
+//  bot start
+bot.start().catch((err) => {
+    console.error("Failed to start Telegram bot:", err);
+});
 console.log(`🚀 Backend API running at ${server.url}`);
