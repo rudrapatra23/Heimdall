@@ -2,6 +2,10 @@ import { handleGetProfile, handlePostProfile } from './src/routes/profile.ts';
 import { handleTelegramLinkStart, handleTelegramWebhook } from './src/routes/telegram.ts';
 import { handleStoreGmailCredentials } from './src/routes/gmail.ts';
 import { bot } from "./src/telegram/bot.ts";
+import { handleHeimdallRequest } from "./src/heimdall/handler";
+import { handleWorkerRequest } from "./src/worker/handler";
+import { handleGmailAuthRequest } from "./src/worker/gmail-auth-handler";
+
 const PORT = parseInt(process.env.PORT ?? '4000');
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
@@ -24,7 +28,14 @@ const server = Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
     const method = req.method.toUpperCase();
+    const heimdallRes = await handleHeimdallRequest(req);
+    if (heimdallRes) return heimdallRes;
 
+    const workerRes = await handleWorkerRequest(req);
+    if (workerRes) return workerRes;
+
+    const gmailAuthRes = await handleGmailAuthRequest(req);
+    if (gmailAuthRes) return gmailAuthRes;
     // Handle CORS preflight
     if (method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(req) });
