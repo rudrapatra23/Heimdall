@@ -2,10 +2,25 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { signInWithGoogle } from '@/lib/auth';
+import { ArrowLeft } from 'lucide-react';
+import { HeimdallLogo } from '@/components/HeimdallLogo';
 
-export function LoginPage() {
+interface LoginPageProps {
+  onNavigate?: (path: string) => void;
+}
+
+export function LoginPage({ onNavigate }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleNavigate = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else {
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -19,35 +34,81 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground text-xl font-bold">H</span>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-[#FFFFFF] text-[#0F172A] relative">
+      
+      {/* Top back button */}
+      <button
+        onClick={() => handleNavigate('/')}
+        className="absolute top-6 left-6 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-1.5 rounded-full shadow-2xs transition-colors cursor-pointer"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        <span>Return to Home</span>
+      </button>
+
+      <Card className="w-full max-w-md bg-white border-slate-200/80 shadow-xl rounded-3xl overflow-hidden p-2">
+        <CardHeader className="text-center space-y-3 pt-8 pb-4">
+          <div className="mx-auto w-12 h-12 rounded-full bg-[#0F172A] text-white flex items-center justify-center shadow-xs">
+            <HeimdallLogo size={24} color="#FFFFFF" />
           </div>
-          <CardTitle className="text-2xl">Welcome to Heimdall</CardTitle>
-          <CardDescription>Your AI-powered email assistant via Telegram</CardDescription>
+          <div>
+            <CardTitle className="font-serif text-3xl text-slate-900 font-normal">
+              Welcome to Heimdall
+            </CardTitle>
+            <CardDescription className="text-slate-500 text-sm mt-1 font-light">
+              Your personal assistant &amp; nutrition coach through messages
+            </CardDescription>
+          </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+
+        <CardContent className="flex flex-col gap-5 px-6 pb-8">
           {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200/60 p-3 rounded-lg text-center">
+              {error}
+            </p>
           )}
+
           <Button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full flex items-center gap-3"
+            className="w-full flex items-center justify-center gap-3 rounded-full bg-[#0F172A] hover:bg-black text-white py-6 shadow-sm hover:shadow-md transition-all cursor-pointer"
             size="lg"
           >
             {loading ? (
-              <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+              <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
             ) : (
               <GoogleIcon />
             )}
-            {loading ? 'Signing in...' : 'Continue with Google'}
+            <span className="font-medium text-sm">
+              {loading ? 'Connecting...' : 'Continue with Google'}
+            </span>
           </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            By continuing, you agree to let Heimdall access your Google account for authentication.
-          </p>
+
+          <div className="text-center space-y-2 pt-2 border-t border-slate-100">
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              By continuing, you agree to Heimdall&apos;s{' '}
+              <a
+                href="/terms"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavigate('/terms');
+                }}
+                className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+              >
+                Terms &amp; Conditions
+              </a>{' '}
+              and{' '}
+              <a
+                href="/privacy"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleNavigate('/privacy');
+                }}
+                className="text-slate-600 hover:text-slate-900 underline underline-offset-2"
+              >
+                Privacy Policy
+              </a>.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
