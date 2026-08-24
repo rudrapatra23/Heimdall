@@ -17,12 +17,12 @@ export function registerAuthHandlers(bot: Bot) {
                 }
             );
         })
-        .on("message", async (ctx) => {
-            if (!ctx.contact) return;
+        .on("message", async (ctx, next) => {
+            // Not a contact-share message — let it fall through to commands / free-text handler
+            if (!ctx.contact) return next();
 
             const contact = ctx.contact;
 
-            // Ensure the contact card belongs to the sender
             if (!contact.userId || contact.userId !== ctx.from?.id) {
                 return ctx.send(
                     "Please share your own phone number using the button above."
@@ -34,7 +34,6 @@ export function registerAuthHandlers(bot: Bot) {
             const telegramUsername = ctx.from.username ?? null;
 
             try {
-                // Find matching profile by contact phone number
                 const [profile] = await db
                     .select()
                     .from(profiles)
@@ -48,7 +47,6 @@ export function registerAuthHandlers(bot: Bot) {
                     );
                 }
 
-                // Update Telegram linkage fields on the verified profile
                 await db
                     .update(profiles)
                     .set({
@@ -70,6 +68,17 @@ export function registerAuthHandlers(bot: Bot) {
                 );
             }
         });
+}
+
+// Used by bot.ts to check if a chat is linked before routing free text
+export async function getProfileByTelegramId(telegramUserId: string) {
+    const [profile] = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.telegram_user_id, telegramUserId))
+        .limit(1);
+
+    return profile ?? null;
 }
 
 function normalizePhone(phone: string) {

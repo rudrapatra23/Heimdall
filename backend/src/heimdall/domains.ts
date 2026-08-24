@@ -105,6 +105,30 @@ export const schedulingDomain: DomainModule = {
     numericEMA(current, incoming as number, alpha, weight),
 };
 
+export const generalDomain: DomainModule = {
+  domain: "general",
+  contextKeys: [],
+  defaultDecayRate: 0.3,
+  extractValue(event: RawInteractionEvent) {
+    if (!ACTION_EVENT_TYPES.has(event.event_type)) return null;
+    const v = event.raw_value as { value?: string | number } | undefined;
+    return v?.value ?? null;
+  },
+  updateValue: categoricalUpdate,
+};
+
+export const foodDomain: DomainModule = {
+  domain: "food",
+  contextKeys: ["meal_type", "time_of_day"],
+  defaultDecayRate: 0.25,
+  extractValue(event: RawInteractionEvent) {
+    if (!ACTION_EVENT_TYPES.has(event.event_type)) return null;
+    const v = event.raw_value as { value?: string | number } | undefined;
+    return v?.value ?? null;
+  },
+  updateValue: categoricalUpdate,
+};
+
 export const domainRegistry: Record<string, DomainModule> = {
   communication: communicationDomain,
   writing_style: communicationDomain, // reuse same shape unless you want to split later
@@ -112,4 +136,6 @@ export const domainRegistry: Record<string, DomainModule> = {
   hotels: hotelsDomain,
   travel: hotelsDomain,
   scheduling: schedulingDomain,
+  general: generalDomain,
+  food: foodDomain,
 };

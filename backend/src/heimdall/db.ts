@@ -52,7 +52,7 @@ export async function upsertPreference(pref: {
       last_updated = now()
     returning *
   `;
-  return rows[0];
+  return rows[0]!;
 }
 
 export async function insertEvent(
@@ -96,6 +96,95 @@ export async function listPreferences(userId: string, domain?: string) {
     `;
   }
   return sql<PreferenceRow[]>`select * from preferences where user_id = ${userId}`;
+}
+
+// ─── Long-term memories ────────────────────────────────────────────────────────
+
+export async function insertMemory(memory: {
+  user_id: string;
+  content: string;
+  domain: string | null;
+  source: "explicit" | "inferred";
+}) {
+  const rows = await sql<{ id: string }[]>`
+    insert into long_term_memories (user_id, content, domain, source)
+    values (${memory.user_id}, ${memory.content}, ${memory.domain}, ${memory.source})
+    returning id
+  `;
+  return rows[0];
+}
+
+export async function findSimilarMemories(
+  userId: string,
+  contentKeyword: string,
+  limit = 5
+): Promise<{ id: string; content: string; domain: string | null; source: string; created_at: string }[]> {
+  return sql`
+    select id, content, domain, source, created_at
+    from long_term_memories
+    where user_id = ${userId}
+      and content ilike ${"%" + contentKeyword + "%"}
+    order by created_at desc
+    limit ${limit}
+  `;
+}
+
+export async function listMemories(
+  userId: string,
+  domain?: string,
+  limit = 20
+): Promise<{ id: string; content: string; domain: string | null; source: string; created_at: string }[]> {
+  if (domain) {
+    return sql`
+      select id, content, domain, source, created_at
+      from long_term_memories
+      where user_id = ${userId} and domain = ${domain}
+      order by created_at desc
+      limit ${limit}
+    `;
+  }
+  return sql`
+    select id, content, domain, source, created_at
+    from long_term_memories
+    where user_id = ${userId}
+    order by created_at desc
+    limit ${limit}
+  `;
+}
+
+// ─── Temporary context ─────────────────────────────────────────────────────────
+
+export async function upsertTemporaryContext(ctx: {
+  user_id: string;
+  task_id: string | null;
+  key: string;
+  value: unknown;
+  ttl_hours?: number;
+}) {
+  const expiresAt = new Date(
+    Date.now() + (ctx.ttl_hours ?? 4) * 3_600_000
+  ).toISOString();
+  await sql`
+    insert into temporary_context (user_id, task_id, key, value, expires_at)
+    values (${ctx.user_id}, ${ctx.task_id}, ${ctx.key}, ${sql.json(ctx.value as any)}, ${expiresAt})
+    on conflict (user_id, key)
+    do update set
+      value = excluded.value,
+      expires_at = excluded.expires_at,
+      task_id = excluded.task_id
+  `;
+}
+
+export async function getActiveTemporaryContext(
+  userId: string
+): Promise<{ key: string; value: unknown; expires_at: string }[]> {
+  return sql`
+    select key, value, expires_at
+    from temporary_context
+    where user_id = ${userId}
+      and expires_at > now()
+    order by expires_at asc
+  `;
 }
 
 export { sql };
