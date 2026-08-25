@@ -22,6 +22,7 @@ export default function Footer() {
               { label: 'Product', href: '/' },
               { label: 'Contact', href: '/contact' },
               { label: 'Terms', href: '/terms-and-conditions' },
+              { label: 'Privacy Policy', href: '/privacy-policy' },
             ]?.map((link, i, arr) => (
               <React.Fragment key={link?.href}>
                 <Link
