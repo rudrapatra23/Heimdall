@@ -1,0 +1,15 @@
+node_modules
+.env
+.env.*
+!.env.example
+dist
+out
+coverage
+.git
+.gitignore
+*.log
+*.tsbuildinfo
+.eslintcache
+.cache
+.idea
+.DS_Store
