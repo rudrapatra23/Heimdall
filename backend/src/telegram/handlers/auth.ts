@@ -7,8 +7,8 @@ export function registerAuthHandlers(bot: Bot) {
     return bot
         .command("start", async (ctx) => {
             return ctx.send(
-                "Hi, I'm Heymdall. Tap the button below to share your phone number. " +
-                "I'll use it to check whether this Telegram chat matches your Heymdall account.",
+                "Hi, I'm Sery 🌼. Tap the button below to share your phone number. " +
+                "I'll use it to check whether this Telegram chat matches your Sery account.",
                 {
                     reply_markup: new Keyboard()
                         .requestContact("📱 Share phone number")
