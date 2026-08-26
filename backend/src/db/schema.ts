@@ -1,11 +1,29 @@
 import {
   pgTable,
+  pgSchema,
   uuid,
   text,
   timestamp,
+  integer,
+  numeric,
+  boolean,
+  jsonb,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+// ──────────────────────────────────────────────────────────
+// auth.users stub
+// Not managed by Drizzle (owned by Supabase Auth) — declared only
+// so FKs from our tables can reference it. schemaFilter: ['public']
+// in drizzle.config.ts already keeps push from touching the auth schema.
+// ──────────────────────────────────────────────────────────
+const authSchema = pgSchema('auth');
+export const authUsers = authSchema.table('users', {
+  id: uuid('id').primaryKey(),
+});
 
 // ──────────────────────────────────────────────────────────
 // profiles
@@ -88,6 +106,119 @@ export const earlyAccessApplications = pgTable(
   ]
 );
 
+// ──────────────────────────────────────────────────────────
+// preferences
+// Current, derived state — what the engine believes NOW.
+// ──────────────────────────────────────────────────────────
+export const preferences = pgTable(
+  'preferences',
+  {
+    id:              uuid('id').primaryKey().defaultRandom(),
+    user_id:         uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+
+    domain:          text('domain').notNull(),
+    preference_key:  text('preference_key').notNull(),
+    context_segment: text('context_segment'),
+
+    value:           jsonb('value').notNull(),
+    confidence:      numeric('confidence', { precision: 4, scale: 3 }).notNull().default('0.0'),
+
+    source:          text('source').notNull(),
+    locked:          boolean('locked').notNull().default(false),
+
+    evidence_count:  integer('evidence_count').notNull().default(0),
+    decay_rate:      numeric('decay_rate', { precision: 4, scale: 3 }).notNull().default('0.200'),
+
+    last_updated:    timestamp('last_updated', { withTimezone: true }).notNull().defaultNow(),
+    created_at:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('preferences_user_id_domain_preference_key_context_segment_key')
+      .on(table.user_id, table.domain, table.preference_key, table.context_segment),
+    index('idx_preferences_user_domain').on(table.user_id, table.domain),
+    check('preferences_confidence_check', sql`${table.confidence} >= 0 and ${table.confidence} <= 1`),
+    check('preferences_source_check', sql`${table.source} in ('explicit', 'inferred')`),
+  ]
+);
+
+// ──────────────────────────────────────────────────────────
+// preference_events
+// Raw, append-only, immutable interaction log — source of truth
+// that `preferences` is always reproducible from.
+// ──────────────────────────────────────────────────────────
+export const preferenceEvents = pgTable(
+  'preference_events',
+  {
+    id:              uuid('id').primaryKey().defaultRandom(),
+    user_id:         uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+
+    domain:          text('domain').notNull(),
+    preference_key:  text('preference_key').notNull(),
+    context_segment: text('context_segment'),
+
+    event_type:      text('event_type').notNull(),
+
+    raw_value:       jsonb('raw_value'),
+    context:         jsonb('context'),
+
+    source:          text('source').notNull(),
+    weight:          numeric('weight', { precision: 4, scale: 2 }).notNull().default('1.00'),
+
+    resulted_value:      jsonb('resulted_value'),
+    resulted_confidence: numeric('resulted_confidence', { precision: 4, scale: 3 }),
+
+    created_at:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_events_user_domain_key').on(table.user_id, table.domain, table.preference_key, table.created_at),
+    check('preference_events_event_type_check', sql`${table.event_type} in (
+      'suggestion_shown', 'suggestion_selected', 'suggestion_accepted', 'suggestion_rejected',
+      'user_edited', 'user_changed', 'user_cancelled', 'explicit_statement', 'explicit_feedback'
+    )`),
+    check('preference_events_source_check', sql`${table.source} in ('explicit', 'inferred')`),
+  ]
+);
+
+// ──────────────────────────────────────────────────────────
+// temporary_context
+// Task-scoped, expires — never influences long-term preferences.
+// ──────────────────────────────────────────────────────────
+export const temporaryContext = pgTable(
+  'temporary_context',
+  {
+    id:         uuid('id').primaryKey().defaultRandom(),
+    user_id:    uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+    task_id:    text('task_id'),
+    key:        text('key').notNull(),
+    value:      jsonb('value').notNull(),
+    expires_at: timestamp('expires_at', { withTimezone: true }).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_temp_context_user_expiry').on(table.user_id, table.expires_at),
+  ]
+);
+
+// ──────────────────────────────────────────────────────────
+// long_term_memories
+// Free-form facts, not preference values.
+// ──────────────────────────────────────────────────────────
+export const longTermMemories = pgTable(
+  'long_term_memories',
+  {
+    id:         uuid('id').primaryKey().defaultRandom(),
+    user_id:    uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+    content:    text('content').notNull(),
+    domain:     text('domain'),
+    source:     text('source').notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_memories_user').on(table.user_id),
+    check('long_term_memories_source_check', sql`${table.source} in ('explicit', 'inferred')`),
+  ]
+);
+
 // Exported type helpers — inferred directly from schema
 export type Profile                  = typeof profiles.$inferSelect;
 export type NewProfile               = typeof profiles.$inferInsert;
@@ -96,3 +227,11 @@ export type NewTelegramLinkToken     = typeof telegramLinkTokens.$inferInsert;
 export type GmailCredential          = typeof gmailCredentials.$inferSelect;
 export type EarlyAccessApplication   = typeof earlyAccessApplications.$inferSelect;
 export type NewEarlyAccessApplication = typeof earlyAccessApplications.$inferInsert;
+export type Preference               = typeof preferences.$inferSelect;
+export type NewPreference            = typeof preferences.$inferInsert;
+export type PreferenceEvent          = typeof preferenceEvents.$inferSelect;
+export type NewPreferenceEvent       = typeof preferenceEvents.$inferInsert;
+export type TemporaryContext         = typeof temporaryContext.$inferSelect;
+export type NewTemporaryContext      = typeof temporaryContext.$inferInsert;
+export type LongTermMemory           = typeof longTermMemories.$inferSelect;
+export type NewLongTermMemory        = typeof longTermMemories.$inferInsert;

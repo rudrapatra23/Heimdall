@@ -8,6 +8,13 @@
       "when": 1787299305638,
       "tag": "0000_living_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787727590869,
+      "tag": "0001_first_magma",
+      "breakpoints": true
     }
   ]
 }

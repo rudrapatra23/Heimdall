@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db, earlyAccessApplications } from '../db/index.ts';
+import { sendAdminNewApplication } from '../email/index.ts';
 
 const HEARD_OPTIONS = [
   'Search Engine (Google, etc.)',
@@ -94,6 +95,21 @@ export async function handleCreateEarlyAccess(req: Request): Promise<Response> {
         status: earlyAccessApplications.status,
         created_at: earlyAccessApplications.created_at,
       });
+
+    if (!application) {
+      return Response.json({ error: 'Failed to submit application' }, { status: 500 });
+    }
+
+    // Notify the admin of the new request. Best-effort: the sender logs and
+    // returns false on failure and never throws, so a saved application is
+    // never turned into an error response. reply_to is the applicant, so the
+    // admin can reply directly to reach them.
+    await sendAdminNewApplication({
+      name:          name.trim(),
+      email:         application.email,
+      howDidYouKnow: how_did_you_know.trim(),
+      status:        application.status,
+    });
 
     return Response.json(
       {
