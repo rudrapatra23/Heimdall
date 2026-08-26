@@ -105,9 +105,9 @@ export default function HeroSection() {
                   </div>
                 ))}
               </div>
-              <p className="text-sm text-muted-foreground font-500">
+              {/* <p className="text-sm text-muted-foreground font-500">
                 <span className="text-foreground font-700">47 founders</span> on the waitlist
-              </p>
+              </p> */}
             </motion.div>
           </div>
 
