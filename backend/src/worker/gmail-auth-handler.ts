@@ -1,77 +1,53 @@
-import { eq } from 'drizzle-orm';
-import { db, gmailCredentials, profiles } from '../db/index.ts';
-import { getCurrentUser, requireAuth } from '../middleware/auth.ts';
-
-interface StoreCredentialsBody {
-  access_token?: string;
-  refresh_token?: string;
-}
+import { getGoogleAuthUrl, handleGoogleCallback } from "./tools/gmail-oauth";
 
 /**
- * POST /api/gmail/store-credentials
- *
- * Called right after the OAuth callback, while the browser still has the
- * short-lived provider_token/provider_refresh_token from Supabase's session.
- * Upserts them into gmail_credentials keyed by user_id, so the backend can
- * later mint fresh Gmail/Calendar access tokens independent of the user's
- * Supabase session state.
+ * Handles /auth/gmail/connect and /auth/gmail/callback.
+ * Wire alongside handleHeimdallRequest and handleWorkerRequest in index.ts.
  */
-export async function handleStoreGmailCredentials(req: Request): Promise<Response> {
-  const authUser = await getCurrentUser(req);
-  const authError = requireAuth(authUser);
-  if (authError) return authError;
+export async function handleGmailAuthRequest(req: Request): Promise<Response | null> {
+  const url = new URL(req.url);
+  const parts = url.pathname.split("/").filter(Boolean); // ["auth", "gmail", "connect" | "callback"]
 
-  let body: StoreCredentialsBody;
-  try {
-    body = (await req.json()) as StoreCredentialsBody;
-  } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
+  if (parts[0] !== "auth" || parts[1] !== "gmail") return null;
 
-  const { access_token, refresh_token } = body;
-  if (!access_token || !refresh_token) {
-    return Response.json(
-      { error: 'access_token and refresh_token are required' },
-      { status: 400 }
-    );
-  }
-
-  // Google access tokens are short-lived (~1hr). Store an expiry estimate so
-  // the refresh logic knows when to mint a new one rather than guessing.
-  const tokenExpiry = new Date(Date.now() + 55 * 60 * 1000);
-
-  try {
-    // 1. Defense-in-depth: Ensure the profile row exists first to satisfy FK constraints
-    await db
-      .insert(profiles)
-      .values({
-        id: authUser!.id,
-        email: authUser!.email,
-      })
-      .onConflictDoNothing({ target: profiles.id });
-
-    // 2. Upsert credentials directly in a single query
-    await db
-      .insert(gmailCredentials)
-      .values({
-        user_id: authUser!.id,
-        access_token,
-        refresh_token,
-        token_expiry: tokenExpiry,
-      })
-      .onConflictDoUpdate({
-        target: gmailCredentials.user_id,
-        set: {
-          access_token,
-          refresh_token,
-          token_expiry: tokenExpiry,
-          updated_at: new Date(),
-        },
+  // GET /auth/gmail/connect?userId=...
+  // Redirects the browser to Google's consent screen.
+  if (req.method === "GET" && parts[2] === "connect") {
+    const userId = url.searchParams.get("userId");
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "userId query param is required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
       });
-
-    return Response.json({ success: true });
-  } catch (err) {
-    console.error('Failed to store Gmail credentials:', err);
-    return Response.json({ error: 'Failed to store credentials' }, { status: 500 });
+    }
+    const authUrl = getGoogleAuthUrl(userId);
+    return Response.redirect(authUrl, 302);
   }
+
+  // GET /auth/gmail/callback?code=...&state=<userId>
+  // Google redirects here after the user grants (or denies) access.
+  if (req.method === "GET" && parts[2] === "callback") {
+    const code = url.searchParams.get("code");
+    const userId = url.searchParams.get("state");
+    const error = url.searchParams.get("error");
+
+    if (error) {
+      return new Response(`Gmail connection was cancelled: ${error}`, { status: 400 });
+    }
+    if (!code || !userId) {
+      return new Response("Missing code or state in callback", { status: 400 });
+    }
+
+    try {
+      await handleGoogleCallback(code, userId);
+      // Replace this with a redirect to your actual frontend "connected!" page.
+      return new Response("Gmail connected successfully. You can close this tab.", {
+        headers: { "Content-Type": "text/plain" },
+      });
+    } catch (err) {
+      return new Response(`Failed to connect Gmail: ${(err as Error).message}`, { status: 500 });
+    }
+  }
+
+  return null;
 }
