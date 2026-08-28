@@ -6,11 +6,10 @@ import { bot } from "./src/telegram/bot.ts";
 import { handleHeimdallRequest } from "./src/heimdall/handler";
 import { handleWorkerRequest } from "./src/worker/handler";
 import { handleGmailAuthRequest } from "./src/worker/gmail-auth-handler";
-import { startTunnel } from "untun"
+
 const PORT = parseInt(process.env.PORT ?? '4000');
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-const tunnel = await startTunnel({ port: 4000 });
-const webhookUrl = tunnel ? await tunnel.getURL() : undefined;
+
 function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
   // Allow frontend origin and in development any localhost
