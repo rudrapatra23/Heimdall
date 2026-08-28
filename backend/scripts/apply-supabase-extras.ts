@@ -21,9 +21,19 @@ if (!ACCESS_TOKEN) {
 // We send them via the Management API's /query endpoint
 const sql = `
 -- 1. profiles.id → auth.users(id) FK
-ALTER TABLE public.profiles
-  ADD CONSTRAINT IF NOT EXISTS profiles_id_auth_users_fk
-  FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- Postgres has no ADD CONSTRAINT IF NOT EXISTS, so guard with a catalog check.
+-- Otherwise this statement errors and aborts the whole batch, leaving the
+-- handle_new_user trigger below uninstalled (the FK-violation root cause).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_id_auth_users_fk'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_id_auth_users_fk
+      FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- 2. updated_at trigger function
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -66,6 +76,13 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 6. Backfill profiles for existing auth.users created before the trigger existed
+INSERT INTO public.profiles (id, email, full_name)
+SELECT u.id, u.email, u.raw_user_meta_data->>'full_name'
+FROM auth.users u
+WHERE u.email IS NOT NULL
+ON CONFLICT (id) DO NOTHING;
 `;
 
 const res = await fetch(
@@ -90,3 +107,4 @@ console.log('✅ Supabase extras applied successfully');
 console.log('   - profiles → auth.users FK');
 console.log('   - set_updated_at triggers (profiles, gmail_credentials)');
 console.log('   - handle_new_user trigger (auth.users INSERT)');
+console.log('   - backfilled profiles for pre-existing auth.users');
