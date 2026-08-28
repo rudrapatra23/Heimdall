@@ -42,7 +42,7 @@ export function registerAuthHandlers(bot: Bot) {
 
                 if (!profile) {
                     return ctx.send(
-                        "❌ We couldn't find an Heymdall account associated with this phone number. " +
+                        "❌ We couldn't find an Sery account associated with this phone number. " +
                         "Please create an account first or contact support."
                     );
                 }
@@ -59,7 +59,7 @@ export function registerAuthHandlers(bot: Bot) {
 
                 const nameGreeting = profile.full_name ? `, ${profile.full_name}` : "";
                 return ctx.send(
-                    `✅ You're in${nameGreeting}! Your Heymdall account is verified. We will talk here from now on.`
+                    `✅ You're in${nameGreeting}! Your Sery account is verified. We will talk here from now on.`
                 );
             } catch (error) {
                 console.error("Failed to link Telegram profile:", error);

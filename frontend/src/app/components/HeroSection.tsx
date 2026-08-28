@@ -94,7 +94,7 @@ export default function HeroSection() {
               variants={itemVariants}
               className="flex items-center gap-6 pt-4"
             >
-              <div className="flex -space-x-3">
+              {/* <div className="flex -space-x-3">
                 {['A', 'R', 'K', 'M']?.map((initial, i) => (
                   <div
                     key={i}
@@ -104,7 +104,7 @@ export default function HeroSection() {
                     {initial}
                   </div>
                 ))}
-              </div>
+              </div> */}
               {/* <p className="text-sm text-muted-foreground font-500">
                 <span className="text-foreground font-700">47 founders</span> on the waitlist
               </p> */}

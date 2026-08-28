@@ -19,7 +19,8 @@ import AppLogo from '@/components/ui/AppLogo';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import type { Profile } from '@/lib/auth';
 
-const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+const BOT_USERNAME =
+  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'xserybot';
 const MAX_POLLS = 40;
 
 // ── User details card ────────────────────────────────────────────────────────
@@ -123,8 +124,6 @@ function TelegramCard({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptsRef = useRef(0);
 
-  const needsGeneratedLink = !linked || !BOT_USERNAME;
-
   const generate = useCallback(async () => {
     setGenerating(true);
 
@@ -145,9 +144,10 @@ function TelegramCard({
   }, [session, toast]);
 
   useEffect(() => {
-    if (needsGeneratedLink) generate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!linked) {
+      generate();
+    }
+  }, [linked, generate]);
 
   const startPolling = useCallback(() => {
     if (pollRef.current) return;
@@ -194,15 +194,15 @@ function TelegramCard({
   }, []);
 
   const handleConnect = () => {
-    if (!deepLink) return;
-    window.open(deepLink, '_blank');
+    const targetUrl = deepLink || `https://t.me/${BOT_USERNAME}`;
+    window.open(targetUrl, '_blank');
     startPolling();
   };
 
-  const openUrl = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}` : deepLink;
+  const openBotUrl = `https://t.me/${BOT_USERNAME}`;
 
   const handleOpenBot = () => {
-    if (openUrl) window.open(openUrl, '_blank');
+    window.open(openBotUrl, '_blank');
   };
 
   if (linked) {
@@ -243,10 +243,9 @@ function TelegramCard({
         <div className="p-4">
           <motion.button
             onClick={handleOpenBot}
-            disabled={!openUrl}
-            whileHover={openUrl ? { scale: 1.01 } : {}}
-            whileTap={openUrl ? { scale: 0.99 } : {}}
-            className="w-full flex items-center justify-center gap-3 rounded-xl bg-primary text-primary-foreground py-3.5 font-700 text-sm shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-all"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="w-full flex items-center justify-center gap-3 rounded-xl bg-primary text-primary-foreground py-3.5 font-700 text-sm shadow-lg hover:bg-primary/90 transition-all"
             style={{
               boxShadow: '0 8px 32px rgba(200, 240, 77, 0.2)',
             }}
@@ -301,9 +300,9 @@ function TelegramCard({
 
         <motion.button
           onClick={handleConnect}
-          disabled={!deepLink || generating}
-          whileHover={deepLink ? { scale: 1.01 } : {}}
-          whileTap={deepLink ? { scale: 0.99 } : {}}
+          disabled={generating}
+          whileHover={!generating ? { scale: 1.01 } : {}}
+          whileTap={!generating ? { scale: 0.99 } : {}}
           className="w-full flex items-center justify-center gap-3 rounded-xl bg-primary text-primary-foreground py-3.5 font-700 text-sm shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-all"
           style={{
             boxShadow: '0 8px 32px rgba(200, 240, 77, 0.2)',
